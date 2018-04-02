@@ -21,7 +21,9 @@ class Fourchan:
 
     def __init__(self):
         parser = argparse.ArgumentParser()
-        parser.add_argument('urls', nargs='*', help='Url of thread with images, Multiple urls in one command is posssible', default =[])
+        parser.add_argument(
+                'urls', nargs='*', help='Url of thread with images, Multiple urls in one command is posssible', default =[]
+                )
         parser.add_argument('-n', '--name', action='store_true', help='Option to set own name')
         parser.add_argument('-r', '--reload', action='store_true', help='Refresh script every 5 minutes to check for new images')
         parser.add_argument('-l', '--last', action='store_true', help='Show history information about downloading images')
@@ -39,7 +41,7 @@ class Fourchan:
             sys.exit(0)
 
         if self.args.last:
-            self.access_to_db(True)
+            self.access_to_db(False)
             sys.exit(0)
 
         self.main()
@@ -64,33 +66,17 @@ class Fourchan:
             print(self.args.urls)
             self.download_images(self.args.urls)
 
-    def access_to_db(self, switch, data = ""):
-
-        def sync_data(data):
-            with open(self.database, 'r') as db:
-                buff = db.readlines()
-
-            os.remove(self.database)
-            if data not in buff and data:
-                buff.append(data)
-            with open(self.database,'w') as db:
-                for line in buff:
-                    db.writeln(line)
-
-        def list_db_data():
-            with open(self.database, 'r') as db:
-                buff = db.readlines()
-            return buff
-
-        try:
-            if switch:
-                for ordl, line in enumerate(list_db_data()):
-                    print(f"{ord}) line")
+    def access_to_db(self, sync_data, seq=""):
+        with open(self.database, "a+") as stream:
+            if sync_data:
+                stream.seek(0)
+                if not seq in list(filter(lambda a: a,map(lambda x: x.strip(),stream.readlines()))):
+                    stream.seek(2)
+                    stream.write(f"{seq}\n")
             else:
-                sync_data(data)
-        except:
-            with open(self.database,'w'):
-                pass
+                stream.seek(0)
+                for index, line in enumerate(list(filter(lambda a: a,map(lambda x:x.strip(),stream.readlines())))):
+                    print(f"{index}) {line}")
 
     def get_url_data(self, url, normal):
         try:
@@ -158,14 +144,16 @@ class Fourchan:
                 self.check_value(website_data, "Not found web data"),
                 "html.parser")
         page_title = parse_title(soup, website_data)
+        print(page_title)
         if page_title:
             #give user chance to choose?
             cleaned_page_title = max(
                     list(filter(lambda x: '/' not in x,
-                        map(lambda y: y.strip(),page_title.split('-'))))
-                    )
+                        map(lambda y: y.strip(),page_title.split('-')))),
+                    key=lambda x: len(x))
         else:
             page_title = input("Sorry Could not find title.\nSet title: ")
+        print(cleaned_page_title)
         if cleaned_page_title:
             os.makedirs(f"{self.workpath}/{cleaned_page_title}", exist_ok=True)
             self.path = cleaned_page_title
@@ -179,7 +167,7 @@ class Fourchan:
                 )
         #print(parsed_data); return
         #refacotring req - put into fucntion
-        self.access_to_db(False, link)
+        self.access_to_db(True, link)
         process_num = math.ceil(len(parsed_data)/10)
         process_field = [[] for pa in range(process_num)]
         theta = len(parsed_data)/process_num
