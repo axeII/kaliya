@@ -1,16 +1,14 @@
-
+#!/usr/local/bin/python
 import os
 import re
 import sys
 import math
 import imghdr
 import argparse
-import http.client
-from pathlib import Path
-from time import gmtime, strftime, sleep
-from multiprocessing import Process, Queue, active_children
-from urllib.request import Request, urlopen, HTTPError, URLError
 import requests
+from time import sleep
+from pathlib import Path
+from multiprocessing import Process, Queue, active_children
 
 try:
     from bs4 import BeautifulSoup
