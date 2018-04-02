@@ -6,9 +6,11 @@ import math
 import imghdr
 import argparse
 import http.client
+from pathlib import Path
 from time import gmtime, strftime, sleep
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, active_children
 from urllib.request import Request, urlopen, HTTPError, URLError
+import requests
 
 try:
     from bs4 import BeautifulSoup
@@ -19,17 +21,26 @@ class Fourchan:
 
     def __init__(self):
         parser = argparse.ArgumentParser()
-        parser.add_argument('urls', nargs=1, help='Url of thread with images, Multiple urls in one command is posssible')
+        parser.add_argument('urls', nargs='*', help='Url of thread with images, Multiple urls in one command is posssible', default =[])
         parser.add_argument('-n', '--name', action='store_true', help='Option to set own name')
         parser.add_argument('-r', '--reload', action='store_true', help='Refresh script every 5 minutes to check for new images')
-        parser.add_argument('-m', '--more', action='store_true', help='Show more information about downloading images')
+        parser.add_argument('-l', '--last', action='store_true', help='Show history information about downloading images')
+        parser.add_argument('-f', '--forum', action='store_true', help='Search data not from FORUM web pages e.g. normal site')
 
         self.args = parser.parse_args()
         self.workpath = os.path.realpath(os.getcwd())
+        self.database = f"{str(Path.home())}/.4chan.list"
+        self.path = ""
         #self.pool = []
         #self.error_download = 0
-        self.path = ""
         #self.que = Queue()
+        if not any(vars(self.args).values()):
+            parser.print_help()
+            sys.exit(0)
+
+        if self.args.last:
+            self.access_to_db(True)
+            sys.exit(0)
 
         self.main()
         while self.args.reload:
@@ -39,33 +50,78 @@ class Fourchan:
         #[job.join() for job in self.pool]
         #print(f"[Info] {self.que.qsize()} images has been downloaded number of error {self.error_download} occured")
 
+    def check_value(self, value, error_line):
+        if not value:
+            print(f"[Error] {error_line} : {value}")
+            sys.exit(2)
+        return value
+
     def main(self):
-        for link_thread in self.args.urls:
-                self.download_images(link_thread)
+        if isinstance(self.args.urls,list):
+            for link_thread in self.args.urls:
+                    self.download_images(link_thread)
+        else:
+            print(self.args.urls)
+            self.download_images(self.args.urls)
+
+    def access_to_db(self, switch, data = ""):
+
+        def sync_data(data):
+            with open(self.database, 'r') as db:
+                buff = db.readlines()
+
+            os.remove(self.database)
+            if data not in buff and data:
+                buff.append(data)
+            with open(self.database,'w') as db:
+                for line in buff:
+                    db.writeln(line)
+
+        def list_db_data():
+            with open(self.database, 'r') as db:
+                buff = db.readlines()
+            return buff
+
+        try:
+            if switch:
+                for ordl, line in enumerate(list_db_data()):
+                    print(f"{ord}) line")
+            else:
+                sync_data(data)
+        except:
+            with open(self.database,'w'):
+                pass
 
     def get_url_data(self, url, normal):
         try:
-            req = Request(url, headers={"User-Agent": "4chan Browser"})
-        except ValueError:
+            response = requests.request('get', url)
+            return response.text if normal else response.content
+        except:
             print(f"[Error] Founded url:{url} is not valid")
-            sys.exit(1)
-        try:
-            if normal:
-                return urlopen(req).read().decode("utf-8")
-            else:
-                return urlopen(req).read()
-        except HTTPError as e:
-            print(f"[Error] -> {e}")
+            return False
             #self.error_download += 1
 
     def find_images(self, soup_, webpage_data):
-        if soup_:
-            return list(map(lambda a: (a,a.split('/')[-1]),filter(lambda l: any(list(map(lambda t: t in l,
-                ("jpeg","jpg","png")))), [link.get("href") for link in
-                    soup_.find_all('a',href=True)])))
+        if not self.args.forum:
+            data = [link.get("href") for link in soup_.find_all('a', href=True)]
         else:
-            regex = '(\/\/i(?:s|)\d*\.(?:4cdn|4chan)\.org\/\w+\/(\d+\.(?:jpg|png|jpeg)))'
-            return [(link,img) for link, img in list(set(re.findall(regex, webpage_data)))]
+            data = [link for link in soup_.find_all("img")]
+            print(data)
+            sys.exit()
+        return list(
+                map(lambda a: (a,a.split('/')[-1]),
+                    filter(lambda l: any(list(
+                        map(lambda t: t in l, ("jpeg","jpg","png", "gif")
+                            ))), data
+                        )
+                    )
+                )
+
+    def shut_down(self):
+        for process in active_children():
+                self.log.info(f"Shutting down process {process}")
+                process.terminate()
+                process.join()
 
     def download_images(self, link):
 
@@ -74,29 +130,33 @@ class Fourchan:
                 for dat in data:
                     create_img(f"{self.workpath}/{self.path}", *dat)
 
-        def create_img(direct, link, name):
-            sleep(1.0)
+        def create_img(direct, link, name, data=""):
+            #refactoring req
+            #sleep(3.0)
             if not os.path.isfile(f"{direct}/{name}"):
                 if not link.startswith("http"):
                     link = f"https:{link}"
                 data = self.get_url_data(link, False)
-                magic_number = "".join(['{:02X}'.format(b) for b in data[:8]][:8])
-                if magic_number == "89504E470D0A1A0A" or\
-                        magic_number[:4] == "FFD8":
-                    with open(f"{direct}/{name}",'wb') as img:
-                        img.write(data)
-                        #self.que.put(True)
+                if data:
+                    magic_number = "".join(['{:02X}'.format(b) for b in data[:8]][:8])
+                    if magic_number == "89504E470D0A1A0A" or magic_number[:4] == "FFD8" or magic_number[:8] == "474946383961":
+                        with open(f"{direct}/{name}",'wb') as img:
+                            img.write(data)
+                            #self.que.put(True)
 
-                    print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{name}")
+                        print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{name}")
 
         def parse_title(soup_, data):
+            #refacotring req
             if soup_:
                 return soup_.title.text
             else:
                 return website_data[website_data.find("<title>")+len("<title>"):website_data.find("</title>")]
 
         website_data = self.get_url_data(link, True)
-        soup = BeautifulSoup(website_data,"html.parser")
+        soup = BeautifulSoup(
+                self.check_value(website_data, "Not found web data"),
+                "html.parser")
         page_title = parse_title(soup, website_data)
         if page_title:
             #give user chance to choose?
@@ -113,9 +173,13 @@ class Fourchan:
             os.makedirs(f"{self.workpath}/4chan{page_title}", exist_ok=True)
             self.path = page_title
 
-        parsed_data = self.find_images(soup, website_data)
-
-        """split data into arrays for multiprocessing"""
+        parsed_data = self.check_value(
+                self.find_images(soup, website_data),
+                "Didn't find any supported images"
+                )
+        #print(parsed_data); return
+        #refacotring req - put into fucntion
+        self.access_to_db(False, link)
         process_num = math.ceil(len(parsed_data)/10)
         process_field = [[] for pa in range(process_num)]
         theta = len(parsed_data)/process_num
@@ -130,4 +194,4 @@ if __name__ == "__main__":
     try:
         fChan = Fourchan()
     except KeyboardInterrupt:
-        pass
+        fChan.shut_down()
