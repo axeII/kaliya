@@ -6,7 +6,7 @@ import math
 import imghdr
 import argparse
 import requests
-from time import sleep
+from time import sleep, strftime, gmtime
 from pathlib import Path
 from multiprocessing import Process, Queue, active_children
 
@@ -151,7 +151,6 @@ class Fourchan:
                     key=lambda x: len(x))
         else:
             page_title = input("Sorry Could not find title.\nSet title: ")
-        print(cleaned_page_title)
         if cleaned_page_title:
             os.makedirs(f"{self.workpath}/{cleaned_page_title}", exist_ok=True)
             self.path = cleaned_page_title
