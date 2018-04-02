@@ -123,7 +123,7 @@ class Fourchan:
                 data = self.get_url_data(link, False)
                 if data:
                     magic_number = "".join(['{:02X}'.format(b) for b in data[:8]][:8])
-                    if magic_number == "89504E470D0A1A0A" or magic_number[:4] == "FFD8" or magic_number[:8] == "474946383961":
+                    if magic_number == "89504E470D0A1A0A" or magic_number[:4] == "FFD8" or magic_number[:12] == "474946383961" or magic_number[:12] == "474946383761":
                         with open(f"{direct}/{name}",'wb') as img:
                             img.write(data)
                             #self.que.put(True)
@@ -145,10 +145,10 @@ class Fourchan:
         print(page_title)
         if page_title:
             #give user chance to choose?
-            cleaned_page_title = max(
+            cleaned_page_title = " ".join(sorted(
                     list(filter(lambda x: '/' not in x,
-                        map(lambda y: y.strip(),page_title.split('-')))),
-                    key=lambda x: len(x))
+                        map(lambda y: y.strip(), page_title.split('-')))),
+                    key=lambda x: len(x), reverse=False))
         else:
             page_title = input("Sorry Could not find title.\nSet title: ")
         if cleaned_page_title:
