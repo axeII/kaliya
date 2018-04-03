@@ -89,9 +89,7 @@ class Fourchan:
         if not self.args.forum:
             data = [link.get("href") for link in soup_.find_all('a', href=True)]
         else:
-            data = [link for link in soup_.find_all("img")]
-            print(data)
-            sys.exit()
+            data = [link.get("src") for link in soup_.find_all("img")]
         return list(
                 map(lambda a: (a,a.split('/')[-1]),
                     filter(lambda l: any(list(
