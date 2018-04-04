@@ -5,8 +5,8 @@ import math
 import imghdr
 import argparse
 import requests
-from time import sleep, strftime, gmtime
 from pathlib import Path
+from time import sleep, strftime, gmtime
 from multiprocessing import Process, Queue, active_children
 
 try:
