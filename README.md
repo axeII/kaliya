@@ -1,2 +1,7 @@
-# 4chan
-4chan
+# Kaliya
+
+image downloader
+
+Supports:
+* 4chan and similar
+* most sites
