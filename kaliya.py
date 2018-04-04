@@ -28,7 +28,7 @@ class Fourchan:
 
         self.args = parser.parse_args()
         self.workpath = os.path.realpath(os.getcwd())
-        self.database = f"{str(Path.home())}/.4chan.list"
+        self.database = f"{str(Path.home())}/.kaliya.list"
         self.path = ""
         #self.pool = []
         #self.error_download = 0
