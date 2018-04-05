@@ -8,16 +8,19 @@ ccyellow='\033[0;33m'
 ccend='\033[0m'
 
 install:
-	@echo $(ccred)"Installing script"$(ccend)
-	echo "!$$(type python | cut -d' ' -f3)" > $(FILE)
+	@echo $(ccyellow)"[INFO] Installing needed prerequisites"$(ccend)
+	@pip install requests
+	@pip install bs4
+	@echo $(ccyellow)"[INFO] Installing script"$(ccend)
+	echo "#!$$(type python | cut -d' ' -f3)" > $(FILE)
 	cat "kaliya.py" >> $(FILE)
 	chmod u+x $(FILE)
-	@echo $(ccred)"Creating local dabase"$(ccend)
+	@echo $(ccyellow)"[INFO] Creating local dabase"$(ccend)
 	touch $(DBASE)
 
 uninstall:
-	@echo $(ccred)"Uninstalling script"$(ccend)
-	@echo $(ccyellow)"Data found you can backup them for later:"$(ccend)
+	@echo $(ccred)"[Warning] Uninstalling script"$(ccend)
+	@echo $(ccyellow)"[INFO] Data found you can backup them for later:"$(ccend)
 	@echo ""
 	@touch $(DBASE) && cat $(DBASE)
 	@echo ""
