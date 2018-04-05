@@ -25,10 +25,15 @@ class Fourchan:
         parser.add_argument('-r', '--reload', action='store_true', help='Refresh script every 5 minutes to check for new images')
         parser.add_argument('-l', '--last', action='store_true', help='Show history information about downloading images')
         parser.add_argument('-f', '--forum', action='store_true', help='Search data not from FORUM web pages e.g. normal site')
-
         self.args = parser.parse_args()
-        self.workpath = os.path.realpath(os.getcwd())
+        self.supported_files = {
+                    "jpeg"   : {"mn": "FFD8", "size": 4},
+                    "png"    : {"mn": "89504E470D0A1A0A", "size": 16},
+                    "gif89a" : {"mn": "474946383961", "size": 12},
+                    "gif87a" : {"mn": "474946383761", "size": 12},
+                    }
         self.database = f"{str(Path.home())}/.kaliya.list"
+        self.workpath = os.path.realpath(os.getcwd())
         self.path = ""
         #self.pool = []
         #self.error_download = 0
@@ -60,7 +65,6 @@ class Fourchan:
             for link_thread in self.args.urls:
                     self.download_images(link_thread)
         else:
-            print(self.args.urls)
             self.download_images(self.args.urls)
 
     def access_to_db(self, sync_data, seq=""):
@@ -76,6 +80,7 @@ class Fourchan:
                     print(f"{index}) {line}")
 
     def get_url_data(self, url, normal):
+        print("url",url)
         try:
             response = requests.request('get', url)
             return response.text if normal else response.content
@@ -108,38 +113,48 @@ class Fourchan:
 
         def loop(data):
             if data and self.path:
-                for dat in data:
-                    create_img(f"{self.workpath}/{self.path}", *dat)
+                [create_img(f"{self.path}", link, *spec) for spec in data]
 
-        def create_img(direct, link, name, data=""):
-            #refactoring req
-            #sleep(3.0)
-            if not os.path.isfile(f"{direct}/{name}"):
-                if not link.startswith("http"):
-                    link = f"https:{link}"
-                data = self.get_url_data(link, False)
-                if data:
-                    magic_number = "".join(['{:02X}'.format(b) for b in data[:8]][:8])
-                    if magic_number == "89504E470D0A1A0A" or magic_number[:4] == "FFD8" or magic_number[:12] == "474946383961" or magic_number[:12] == "474946383761":
-                        with open(f"{direct}/{name}",'wb') as img:
-                            img.write(data)
+        def create_img(direct, link, link_address, link_name):
+
+            def supported_format(mag_num):
+                return any(list(map(lambda x: mag_num[:x["size"]] == x["mn"],
+                    self.supported_files.values())))
+
+            def broken_link(site, link):
+                #could be done better how?
+                return f"{site}/{link}" if not link.startswith("http") or not link.count('.') > 1 else link
+
+            def fix_https(link):
+                return f"https:{link}" if not link.startswith("http") else link
+
+            sleep(2.0)
+            if not os.path.isfile(f"{direct}/{link_name}"):
+                if self.args.forum:
+                    image_dat = self.get_url_data(fix_https(broken_link(link,link_address)), False)
+                else:
+                    image_dat = self.get_url_data(fix_https(link_address), False)
+                if image_dat:
+                    magic_number = "".join(['{:02X}'.format(b) for b in image_dat[:8]][:8])
+                    if supported_format(magic_number):
+                        with open(f"{direct}/{link_name}",'wb') as img:
+                            img.write(image_dat)
                             #self.que.put(True)
-
-                        print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{name}")
+                        print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{link_name}")
 
         def parse_title(soup_, data):
-            #refacotring req
-            if soup_:
+            try:
                 return soup_.title.text
-            else:
-                return website_data[website_data.find("<title>")+len("<title>"):website_data.find("</title>")]
+            except:
+                print("[Warning] page title not found")
+                return ""
 
         website_data = self.get_url_data(link, True)
+        cleaned_page_title = ""
         soup = BeautifulSoup(
                 self.check_value(website_data, "Not found web data"),
                 "html.parser")
         page_title = parse_title(soup, website_data)
-        print(page_title)
         if page_title:
             #give user chance to choose?
             cleaned_page_title = " ".join(sorted(
@@ -147,19 +162,18 @@ class Fourchan:
                         map(lambda y: y.strip(), page_title.split('-')))),
                     key=lambda x: len(x), reverse=False))
         else:
-            page_title = input("Sorry Could not find title.\nSet title: ")
+            page_title = input("[INFO] Sorry could not find page title.\nSet title: ")
         if cleaned_page_title:
             os.makedirs(f"{self.workpath}/{cleaned_page_title}", exist_ok=True)
-            self.path = cleaned_page_title
+            self.path = f"{self.workpath}/{cleaned_page_title}"
         else:
             os.makedirs(f"{self.workpath}/4chan{page_title}", exist_ok=True)
-            self.path = page_title
+            self.path = f"{self.workpath}/4chan{page_title}"
 
         parsed_data = self.check_value(
                 self.find_images(soup, website_data),
-                "Didn't find any supported images"
+                "[Warning] Didn't find any supported images, try -f switch"
                 )
-        #print(parsed_data); return
         #refacotring req - put into fucntion
         self.access_to_db(True, link)
         process_num = math.ceil(len(parsed_data)/10)
