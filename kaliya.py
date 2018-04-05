@@ -14,6 +14,12 @@ try:
 except ModuleNotFoundError:
     print("[Warning] Not found beautiful soup package - install it for better perfomace")
 
+def printerr(string):
+    print(f"\033[0;31m {string} \033[0m")
+
+def printinfo(string):
+    print(f"\033[0;33m {string} \033[0m")
+
 class Fourchan:
 
     def __init__(self):
@@ -25,6 +31,8 @@ class Fourchan:
         parser.add_argument('-r', '--reload', action='store_true', help='Refresh script every 5 minutes to check for new images')
         parser.add_argument('-l', '--last', action='store_true', help='Show history information about downloading images')
         parser.add_argument('-f', '--forum', action='store_true', help='Search data not from FORUM web pages e.g. normal site')
+        parser.add_argument('-i', '--ignore', action='store_true', help='Ignore title setup just use founded on site')
+
         self.args = parser.parse_args()
         self.supported_files = {
                     "jpeg"   : {"mn": "FFD8", "size": 4},
@@ -56,7 +64,7 @@ class Fourchan:
 
     def check_value(self, value, error_line):
         if not value:
-            print(f"[Error] {error_line} : {value}")
+            printerr(f"[Error] {error_line} : {value}")
             sys.exit(2)
         return value
 
@@ -80,12 +88,11 @@ class Fourchan:
                     print(f"{index}) {line}")
 
     def get_url_data(self, url, normal):
-        print("url",url)
         try:
             response = requests.request('get', url)
             return response.text if normal else response.content
         except:
-            print(f"[Error] Founded url:{url} is not valid")
+            printerr(f"[Error] Found url:{url} is not valid")
             return False
             #self.error_download += 1
 
@@ -105,7 +112,7 @@ class Fourchan:
 
     def shut_down(self):
         for process in active_children():
-                self.log.info(f"Shutting down process {process}")
+                printinfo(f"Shutting down process {process}")
                 process.terminate()
                 process.join()
 
@@ -128,7 +135,8 @@ class Fourchan:
             def fix_https(link):
                 return f"https:{link}" if not link.startswith("http") else link
 
-            sleep(2.0)
+            if self.args.forum:
+                sleep(2.0)
             if not os.path.isfile(f"{direct}/{link_name}"):
                 if self.args.forum:
                     image_dat = self.get_url_data(fix_https(broken_link(link,link_address)), False)
@@ -146,7 +154,7 @@ class Fourchan:
             try:
                 return soup_.title.text
             except:
-                print("[Warning] page title not found")
+                printinfo("[Warning] page title not found")
                 return ""
 
         website_data = self.get_url_data(link, True)
@@ -162,8 +170,18 @@ class Fourchan:
                         map(lambda y: y.strip(), page_title.split('-')))),
                     key=lambda x: len(x), reverse=False))
         else:
-            page_title = input("[INFO] Sorry could not find page title.\nSet title: ")
+            page_title = printinfo("[INFO] Sorry could not find page title.\nSet title: ")
         if cleaned_page_title:
+            if not self.args.ignore:
+                printinfo(f"[INFO] Found this title: {cleaned_page_title}")
+                print("1) Continue")
+                print("2) Setup own title")
+                try:
+                    answer = int(input("Choice: "))
+                except ValueError:
+                    answer = int(input("Please input number to choose next step: "))
+                if answer == 2:
+                    cleaned_page_title = input("Folder name: ")
             os.makedirs(f"{self.workpath}/{cleaned_page_title}", exist_ok=True)
             self.path = f"{self.workpath}/{cleaned_page_title}"
         else:
@@ -172,7 +190,7 @@ class Fourchan:
 
         parsed_data = self.check_value(
                 self.find_images(soup, website_data),
-                "[Warning] Didn't find any supported images, try -f switch"
+                "Didn't find any supported images, try -f switch"
                 )
         #refacotring req - put into fucntion
         self.access_to_db(True, link)
