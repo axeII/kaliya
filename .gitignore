@@ -4,3 +4,4 @@
 
 #system files
 .DS_Store
+*.log

@@ -4,21 +4,34 @@ import sys
 import math
 import imghdr
 import argparse
-import requests
 from pathlib import Path
 from time import sleep, strftime, gmtime
 from multiprocessing import Process, Queue, active_children
-
-try:
-    from bs4 import BeautifulSoup
-except ModuleNotFoundError:
-    print("[Warning] Not found beautiful soup package - install it for better perfomace")
 
 def printerr(string):
     print(f"\033[0;31m {string} \033[0m")
 
 def printinfo(string):
     print(f"\033[0;33m {string} \033[0m")
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.firefox.options import Options
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import (
+        ElementNotVisibleException
+    )
+except ModuleNotFoundError:
+    printinfo("Selenium not found... you won't be able to use some kaliya features")
+
+try:
+    from bs4 import BeautifulSoup
+    import requests
+except ModuleNotFoundError:
+    printerr("Not found beautiful_soup or requests  package")
+
 
 class Fourchan:
 
@@ -32,6 +45,7 @@ class Fourchan:
         parser.add_argument('-l', '--last', action='store_true', help='Show history information about downloading images')
         parser.add_argument('-f', '--forum', action='store_true', help='Search data not from FORUM web pages e.g. normal site')
         parser.add_argument('-i', '--ignore', action='store_true', help='Ignore title setup just use founded on site')
+        parser.add_argument('-s', '--selenium', action='store_true', help='Activate selenium mode to load site with healess mode (use for sites that load iamges later)')
 
         self.args = parser.parse_args()
         self.supported_files = {
@@ -89,14 +103,31 @@ class Fourchan:
 
     def get_url_data(self, url, normal):
         try:
-            response = requests.request('get', url)
-            return response.text if normal else response.content
-        except:
-            printerr(f"[Error] Found url:{url} is not valid")
-            return False
+            if self.args.selenium and normal:
+                options = Options()
+                options.add_argument("--headless")
+                driver = webdriver.Firefox(firefox_options=options)
+                driver.wait = WebDriverWait(driver, 5)
+                driver.get(url)
+                try:
+                    myElem = WebDriverWait(
+                        driver,
+                        3
+                    ).until(EC.presence_of_element_located((By.CLASS_NAME,"overlay")))
+                    driver.execute_script("window.scrollBy(0,250)", "")
+                    return driver.page_source
+                except ElementNotVisibleException:
+                    printerr("Loading took too much time!")
+            else:
+                response = requests.request('get', url)
+                return response.text if normal else response.content
+        except Exception as e:
+            printerr(f"[Error] Found url:{url} is not valid\n stderr: {e}")
             #self.error_download += 1
 
-    def find_images(self, soup_, webpage_data):
+    def find_images(self, soup_):
+        for a in soup_.find_all('a',{"class": "overlay"}, href=True):
+            print(a)
         if not self.args.forum:
             data = [link.get("href") for link in soup_.find_all('a', href=True)]
         else:
@@ -129,7 +160,6 @@ class Fourchan:
                     self.supported_files.values())))
 
             def broken_link(site, link):
-                #could be done better how?
                 return f"{site}/{link}" if not link.startswith("http") or not link.count('.') > 1 else link
 
             def fix_https(link):
@@ -157,6 +187,20 @@ class Fourchan:
                 printinfo("[Warning] page title not found")
                 return ""
 
+        def calculate_optimum(parsed_dat):
+            try:
+                process_num = math.ceil(len(parsed_data)/10)
+                process_field = [[] for pa in range(process_num)]
+                PROC_NUM = len(parsed_dat)/process_num
+                for index in range(process_num):
+                    process_field[indx] = parsed_dat[
+                            int(index*PROC_NUM):int((index*PROC_NUM)+PROC_NUM)
+                            ]
+                return process_field
+            except Exception as e:
+                printerr(f"Problem occurent when calculating correct process data separation: {e}")
+                return []
+
         website_data = self.get_url_data(link, True)
         cleaned_page_title = ""
         soup = BeautifulSoup(
@@ -164,7 +208,6 @@ class Fourchan:
                 "html.parser")
         page_title = parse_title(soup, website_data)
         if page_title:
-            #give user chance to choose?
             cleaned_page_title = " ".join(sorted(
                     list(filter(lambda x: '/' not in x,
                         map(lambda y: y.strip(), page_title.split('-')))),
@@ -174,8 +217,7 @@ class Fourchan:
         if cleaned_page_title:
             if not self.args.ignore:
                 printinfo(f"[INFO] Found this title: {cleaned_page_title}")
-                print("1) Continue")
-                print("2) Setup own title")
+                print("1) Continue\n2) Setup own title")
                 try:
                     answer = int(input("Choice: "))
                 except ValueError:
@@ -189,17 +231,11 @@ class Fourchan:
             self.path = f"{self.workpath}/4chan{page_title}"
 
         parsed_data = self.check_value(
-                self.find_images(soup, website_data),
+                self.find_images(soup),
                 "Didn't find any supported images, try -f switch"
                 )
-        #refacotring req - put into fucntion
         self.access_to_db(True, link)
-        process_num = math.ceil(len(parsed_data)/10)
-        process_field = [[] for pa in range(process_num)]
-        theta = len(parsed_data)/process_num
-        for i in range(process_num):
-            process_field[i] = parsed_data[int(i*theta):int((i*theta)+theta)]
-        for pf in process_field:
+        for pf in calculate_optimum(parsed_data):
             Process(target=loop, args=(pf,)).start()
             #self.pool.append(Process(target=loop, args=(pf,)))
             #self.pool[-1].start()
@@ -208,4 +244,5 @@ if __name__ == "__main__":
     try:
         fChan = Fourchan()
     except KeyboardInterrupt:
-        fChan.shut_down()
+        if fChan:
+            fChan.shut_down()
