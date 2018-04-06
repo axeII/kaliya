@@ -40,12 +40,10 @@ class Fourchan:
         parser.add_argument(
                 'urls', nargs='*', help='Url of thread with images, Multiple urls in one command is posssible', default =[]
                 )
-        parser.add_argument('-n', '--name', action='store_true', help='Option to set own name')
         parser.add_argument('-r', '--reload', action='store_true', help='Refresh script every 5 minutes to check for new images')
         parser.add_argument('-l', '--last', action='store_true', help='Show history information about downloading images')
-        parser.add_argument('-f', '--forum', action='store_true', help='Search data not from FORUM web pages e.g. normal site')
-        parser.add_argument('-i', '--ignore', action='store_true', help='Ignore title setup just use founded on site')
         parser.add_argument('-s', '--selenium', action='store_true', help='Activate selenium mode to load site with healess mode (use for sites that load iamges later)')
+        parser.add_argument('-i', '--ignore', action='store_true', help='Ignore title setup just use founded on site')
 
         self.args = parser.parse_args()
         self.supported_files = {
@@ -126,11 +124,10 @@ class Fourchan:
             #self.error_download += 1
 
     def find_images(self, soup_):
-        for a in soup_.find_all('a',{"class": "overlay"}, href=True):
-            print(a)
-        if not self.args.forum:
-            data = [link.get("href") for link in soup_.find_all('a', href=True)]
-        else:
+        #for a in soup_.find_all('a',{"class": "overlay"}, href=True):
+        #    print(a)
+        data = [link.get("href") for link in soup_.find_all('a', href=True)]
+        if not data:
             data = [link.get("src") for link in soup_.find_all("img")]
         return list(
                 map(lambda a: (a,a.split('/')[-1]),
@@ -232,7 +229,7 @@ class Fourchan:
 
         parsed_data = self.check_value(
                 self.find_images(soup),
-                "Didn't find any supported images, try -f switch"
+                "Didn't find any supported images"
                 )
         self.access_to_db(True, link)
         for pf in calculate_optimum(parsed_data):

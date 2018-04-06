@@ -13,7 +13,8 @@ At last kailya also saves all sites that you used it for downloading iamges. His
 
 Currently supports:
 * 4chan and similar
-* all sites that don't have later loading iamges.
+* flickr
+* all sites that don't have later loading iamges (in progress)
 
 ### Installation
 
@@ -22,24 +23,29 @@ To install script just enter `make` or `make install` that will install script a
 #### Dependencies
 To be better kaliya uses two non default libraries - beautiful soup and requests. Both should be installed via makefile.
 
-* bs4 (beautifulSoup4)
 * requests
+* bs4 (beautifulSoup4)
+* selenium (optional)
+* firefox (optional)
 
 ### TO DO
 * add support for flicker
 * make kaliya open to pull request for anohter sites
 
 ```text
-usage: 4chan [-h] [-n] [-r] [-l] [-f] [urls [urls ...]]
+usage: kaliya.py [-h] [-n] [-r] [-l] [-f] [-i] [-s] [urls [urls ...]]
 
 positional arguments:
-  urls          Url of thread with images, Multiple urls in one command is
-                posssible
+  urls            Url of thread with images, Multiple urls in one command is
+                  posssible
 
 optional arguments:
-  -h, --help    show this help message and exit
-  -n, --name    Option to set own name
-  -r, --reload  Refresh script every 5 minutes to check for new images
-  -l, --last    Show history information about downloading images
-  -f, --forum   Search data not from FORUM web pages e.g. normal site
+  -h, --help      show this help message and exit
+  -n, --name      Option to set own name
+  -r, --reload    Refresh script every 5 minutes to check for new images
+  -l, --last      Show history information about downloading images
+  -f, --forum     Search data not from FORUM web pages e.g. normal site
+  -i, --ignore    Ignore title setup just use founded on site
+  -s, --selenium  Activate selenium mode to load site with healess mode (use
+                  for sites that load iamges later)
 ```

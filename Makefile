@@ -17,6 +17,7 @@ install:
 	chmod u+x $(FILE)
 	@echo $(ccyellow)"[INFO] Creating local dabase"$(ccend)
 	touch $(DBASE)
+	@echo "Please install geodriver for firefox: "$(ccyellow)"https://github.com/mozilla/geckodriver/releases"$(ccend)
 
 uninstall:
 	@echo $(ccred)"[Warning] Uninstalling script"$(ccend)
