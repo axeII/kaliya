@@ -112,8 +112,9 @@ class Fourchan:
                         driver,
                         3
                     ).until(EC.presence_of_element_located((By.CLASS_NAME,"overlay")))
-                    driver.execute_script("window.scrollBy(0,250)", "")
-                    return driver.page_source
+                    page_source = driver.page_source
+                    driver.quit()
+                    return page_source
                 except ElementNotVisibleException:
                     printerr("Loading took too much time!")
             else:
@@ -137,6 +138,8 @@ class Fourchan:
                         )
                     )
                 )
+    def load_models(self):
+        pass
 
     def shut_down(self):
         for process in active_children():
