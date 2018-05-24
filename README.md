@@ -18,7 +18,7 @@ Currently supports:
 
 ### Installation
 
-To install script just enter `make` or `make install` that will install script and application. To uninstall hit `make uninstall`. Kaliya is currently python3 only.
+To install script just enter `make` or `make install` that will install script and application. To uninstall hit `make uninstall`. Kaliya is currently python3 only. Supports linux and macOS(wget is needed).
 
 #### Dependencies
 To be better kaliya uses two non default libraries - beautiful soup, request... etc . All of them should be installed via makefile.Kaliya currently support firefox only. But is needed for sites with later image loading.
