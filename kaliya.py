@@ -8,16 +8,6 @@ from pathlib import Path
 from time import sleep, strftime, gmtime
 from multiprocessing import Process, Queue, active_children
 
-def print_caution(string):
-    caution = list(map(lambda x: x.lower(),string.replace('[','').replace(']','').split(' ')))
-    if "error" in caution:
-        print(f"\033[0;31m {string} \033[0m")
-    elif "warning" in caution:
-        print(f"\033[0;33m {string} \033[0m")
-    elif "info" in caution:
-        print(f"\033[92m {string} \033[0m")
-    else:
-        print(string)
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
@@ -36,6 +26,17 @@ try:
 except ModuleNotFoundError:
     print_caution("[WARNING] Not found beautiful_soup or requests package")
 
+
+def print_caution(string):
+    caution = list(map(lambda x: x.lower(),string.replace('[','').replace(']','').split(' ')))
+    if "error" in caution:
+        print(f"\033[0;31m {string} \033[0m")
+    elif "warning" in caution:
+        print(f"\033[0;33m {string} \033[0m")
+    elif "succes" in caution:
+        print(f"\033[92m {string} \033[0m")
+    else:
+        print(string)
 
 class Kaliya:
 
@@ -58,6 +59,7 @@ class Kaliya:
                     }
         self.database = f"{str(Path.home())}/.kaliya.list"
         self.workpath = os.path.realpath(os.getcwd())
+        self.secondary_mode = False
         self.path = ""
         #self.pool = []
         #self.error_download = 0
@@ -80,7 +82,7 @@ class Kaliya:
 
     def check_value(self, value, error_line):
         if not value:
-            print_caution(f"[Error] {error_line} : {value}")
+            print_caution(f"[Error] {error_line} \n {value}")
             sys.exit(2)
         return value
 
@@ -104,40 +106,37 @@ class Kaliya:
                     print(f"{index}) {line}")
 
     def get_url_data(self, url, normal):
-        #try:
-        if self.args.selenium and normal:
-            options = Options()
-            options.add_argument("--headless")
-            driver = webdriver.Firefox(firefox_options=options)
-            #driver.wait = WebDriverWait(driver, 5)
-            driver.get(url)
-            return driver.page_source
-            """try:
-                myElem = WebDriverWait(
-                    driver,
-                    3
-                ).until(EC.presence_of_element_located((By.CLASS_NAME,"overlay")))
+        """ normal stands for downloading bytes like images etc, normal true in
+        to search images"""
+        self.check_value(url," Broken link")
+        try:
+            if (self.args.selenium and normal) or self.secondary_mode:
+                print_caution("[WARNING] Using selenium to download content - this could take some time...")
+                options = Options()
+                options.add_argument("--headless")
+                driver = webdriver.Firefox(firefox_options=options)
+                #driver.wait = WebDriverWait(driver, 5)
+                #myElem = WebDriverWait(driver,3).until(EC.presence_of_element_located((By.CLASS_NAME,"overlay")))
+                driver.get(url)
                 page_source = driver.page_source
                 driver.quit()
                 return page_source
-            except:
-                print_caution("Something went wrong")
+            else:
+                response = requests.request('get', url)
+                return response.text if normal else response.content
+        except Exception as e:
+            print_caution(f"[Error] Found url:{url} is not valid\n stderr: {e}")
+            if driver:
                 driver.quit()
-                return """
-        else:
-            response = requests.request('get', url)
-            return response.text if normal else response.content
-        #except Exception as e:
-        #    print_caution(f"[Error] Found url:{url} is not valid\n stderr: {e}")
             #self.error_download += 1
 
     def find_images(self, soup_):
         #for a in soup_.find_all('a',{"class": "overlay"}, href=True):
         #    print(a)
         data = [link.get("href") for link in soup_.find_all('a', href=True)]
+        #print(list(filter(lambda x: "jpg" in x or "png" in x ,data)))
         if not list(filter(lambda x: "jpg" in x or "png" in x ,data)):
             data = [link for link in soup_.find_all("img")]
-            sys.exit()
         return list(
                 map(lambda a: (a,a.split('/')[-1]),
                     filter(lambda l: any(list(
@@ -146,6 +145,12 @@ class Kaliya:
                         )
                     )
                 )
+
+    def use_selenium(self, link):
+        self.secondary_mode = True
+        website_data = self.get_url_data(link, True)
+        sp = BeautifulSoup(website_data,"html.parser")
+        return self.find_images(sp)
 
     def load_models(self):
         pass
@@ -174,18 +179,29 @@ class Kaliya:
             def fix_https(link):
                 return f"https:{link}" if not link.startswith("http") else link
 
-            sleep(1.4)
+            def detect_real_url(site_link, file_url):
+                original = requests.get(fix_https(file_url))
+                if original.status_code != 200:
+                    new = requests.get(broken_link(site_link, file_url))
+                    if new.status_code != 200:
+                        print_caution("[ERROR] site not found")
+                    else:
+                        return broken_link(site_link, file_url)
+                else:
+                    return fix_https(file_url)
+
+
+            #sleep(1.4)
             if not os.path.isfile(f"{direct}/{link_name}"):
-                image_dat = self.get_url_data(fix_https(link_address), False)
-                #image_dat = self.get_url_data(fix_https(broken_link(link,link_address)), False)
-                #print_caution("[ERROR] image not supported")
-                #print(image_dat)
+                image_dat = self.get_url_data(detect_real_url(link, link_address), False)
                 magic_number = "".join(['{:02X}'.format(b) for b in image_dat[:8]][:8])
                 if supported_format(magic_number):
                     with open(f"{direct}/{link_name}",'wb') as img:
                         img.write(image_dat)
                         #self.que.put(True)
                     print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{link_name}")
+                else:
+                    print_caution("[ERROR] image not supported")
 
         def parse_title(soup_, data):
             try:
@@ -208,6 +224,7 @@ class Kaliya:
                 print_caution(f"Problem occurent when calculating correct process data separation: {e}")
                 return []
 
+        #start
         website_data = self.get_url_data(link, True)
         cleaned_page_title = ""
         soup = BeautifulSoup(
@@ -231,16 +248,21 @@ class Kaliya:
                     answer = int(input("Please input number to choose next step: "))
                 if answer == 2:
                     cleaned_page_title = input("Folder name: ")
+            print_caution("[INFO] Creating folder...")
             os.makedirs(f"{self.workpath}/{cleaned_page_title}", exist_ok=True)
             self.path = f"{self.workpath}/{cleaned_page_title}"
         else:
             os.makedirs(f"{self.workpath}/4chan{page_title}", exist_ok=True)
             self.path = f"{self.workpath}/4chan{page_title}"
 
-        parsed_data = self.check_value(
-                self.find_images(soup),
-                "Didn't find any supported images"
-                )
+        parsed_data = self.find_images(soup)
+        if not parsed_data:
+            print_caution("[WARNING] No images found switching to secondary mode using selenium...")
+            parsed_data = self.use_selenium(link)
+            if parsed_data:
+                print_caution("[SUCCES] Images has been found")
+                self.secondary_mode = False
+        self.check_value(parsed_data, "Didn't find any supported images:")
         self.access_to_db(True, link)
         for pf in calculate_optimum(parsed_data):
             Process(target=loop, args=(pf,)).start()

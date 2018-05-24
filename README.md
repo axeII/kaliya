@@ -13,19 +13,19 @@ At last kailya also saves all sites that you used it for downloading iamges. His
 
 Currently supports:
 * 4chan and similar
-* flickr
-* all sites that don't have later loading iamges (in progress)
+* imgur 
+* most sites even if they have later image loading
 
 ### Installation
 
 To install script just enter `make` or `make install` that will install script and application. To uninstall hit `make uninstall`. Kaliya is currently python3 only.
 
 #### Dependencies
-To be better kaliya uses two non default libraries - beautiful soup and requests. Both should be installed via makefile.
+To be better kaliya uses two non default libraries - beautiful soup, request... etc . All of them should be installed via makefile.Kaliya currently support firefox only. But is needed for sites with later image loading.
 
 * requests
 * bs4 (beautifulSoup4)
-* selenium (optional)
+* selenium
 * firefox (optional)
 
 ### TO DO
