@@ -8,12 +8,16 @@ from pathlib import Path
 from time import sleep, strftime, gmtime
 from multiprocessing import Process, Queue, active_children
 
-def printerr(string):
-    print(f"\033[0;31m {string} \033[0m")
-
-def printinfo(string):
-    print(f"\033[0;33m {string} \033[0m")
-
+def print_caution(string):
+    caution = list(map(lambda x: x.lower(),string.replace('[','').replace(']','').split(' ')))
+    if "error" in caution:
+        print(f"\033[0;31m {string} \033[0m")
+    elif "warning" in caution:
+        print(f"\033[0;33m {string} \033[0m")
+    elif "info" in caution:
+        print(f"\033[92m {string} \033[0m")
+    else:
+        print(string)
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
@@ -24,16 +28,16 @@ try:
         ElementNotVisibleException
     )
 except ModuleNotFoundError:
-    printinfo("Selenium not found... you won't be able to use some kaliya features")
+    print_caution("[WARNING] Selenium not found... you won't be able to use some kaliya features")
 
 try:
     from bs4 import BeautifulSoup
     import requests
 except ModuleNotFoundError:
-    printerr("Not found beautiful_soup or requests  package")
+    print_caution("[WARNING] Not found beautiful_soup or requests package")
 
 
-class Fourchan:
+class Kaliya:
 
     def __init__(self):
         parser = argparse.ArgumentParser()
@@ -76,7 +80,7 @@ class Fourchan:
 
     def check_value(self, value, error_line):
         if not value:
-            printerr(f"[Error] {error_line} : {value}")
+            print_caution(f"[Error] {error_line} : {value}")
             sys.exit(2)
         return value
 
@@ -100,36 +104,40 @@ class Fourchan:
                     print(f"{index}) {line}")
 
     def get_url_data(self, url, normal):
-        try:
-            if self.args.selenium and normal:
-                options = Options()
-                options.add_argument("--headless")
-                driver = webdriver.Firefox(firefox_options=options)
-                driver.wait = WebDriverWait(driver, 5)
-                driver.get(url)
-                try:
-                    myElem = WebDriverWait(
-                        driver,
-                        3
-                    ).until(EC.presence_of_element_located((By.CLASS_NAME,"overlay")))
-                    page_source = driver.page_source
-                    driver.quit()
-                    return page_source
-                except ElementNotVisibleException:
-                    printerr("Loading took too much time!")
-            else:
-                response = requests.request('get', url)
-                return response.text if normal else response.content
-        except Exception as e:
-            printerr(f"[Error] Found url:{url} is not valid\n stderr: {e}")
+        #try:
+        if self.args.selenium and normal:
+            options = Options()
+            options.add_argument("--headless")
+            driver = webdriver.Firefox(firefox_options=options)
+            #driver.wait = WebDriverWait(driver, 5)
+            driver.get(url)
+            return driver.page_source
+            """try:
+                myElem = WebDriverWait(
+                    driver,
+                    3
+                ).until(EC.presence_of_element_located((By.CLASS_NAME,"overlay")))
+                page_source = driver.page_source
+                driver.quit()
+                return page_source
+            except:
+                print_caution("Something went wrong")
+                driver.quit()
+                return """
+        else:
+            response = requests.request('get', url)
+            return response.text if normal else response.content
+        #except Exception as e:
+        #    print_caution(f"[Error] Found url:{url} is not valid\n stderr: {e}")
             #self.error_download += 1
 
     def find_images(self, soup_):
         #for a in soup_.find_all('a',{"class": "overlay"}, href=True):
         #    print(a)
         data = [link.get("href") for link in soup_.find_all('a', href=True)]
-        if not data:
-            data = [link.get("src") for link in soup_.find_all("img")]
+        if not list(filter(lambda x: "jpg" in x or "png" in x ,data)):
+            data = [link for link in soup_.find_all("img")]
+            sys.exit()
         return list(
                 map(lambda a: (a,a.split('/')[-1]),
                     filter(lambda l: any(list(
@@ -138,12 +146,13 @@ class Fourchan:
                         )
                     )
                 )
+
     def load_models(self):
         pass
 
     def shut_down(self):
         for process in active_children():
-                printinfo(f"Shutting down process {process}")
+                print_caution(f"Shutting down process {process}")
                 process.terminate()
                 process.join()
 
@@ -165,26 +174,24 @@ class Fourchan:
             def fix_https(link):
                 return f"https:{link}" if not link.startswith("http") else link
 
-            if self.args.forum:
-                sleep(2.0)
+            sleep(1.4)
             if not os.path.isfile(f"{direct}/{link_name}"):
-                if self.args.forum:
-                    image_dat = self.get_url_data(fix_https(broken_link(link,link_address)), False)
-                else:
-                    image_dat = self.get_url_data(fix_https(link_address), False)
-                if image_dat:
-                    magic_number = "".join(['{:02X}'.format(b) for b in image_dat[:8]][:8])
-                    if supported_format(magic_number):
-                        with open(f"{direct}/{link_name}",'wb') as img:
-                            img.write(image_dat)
-                            #self.que.put(True)
-                        print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{link_name}")
+                image_dat = self.get_url_data(fix_https(link_address), False)
+                #image_dat = self.get_url_data(fix_https(broken_link(link,link_address)), False)
+                #print_caution("[ERROR] image not supported")
+                #print(image_dat)
+                magic_number = "".join(['{:02X}'.format(b) for b in image_dat[:8]][:8])
+                if supported_format(magic_number):
+                    with open(f"{direct}/{link_name}",'wb') as img:
+                        img.write(image_dat)
+                        #self.que.put(True)
+                    print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{link_name}")
 
         def parse_title(soup_, data):
             try:
                 return soup_.title.text
             except:
-                printinfo("[Warning] page title not found")
+                print_caution("[Warning] page title not found")
                 return ""
 
         def calculate_optimum(parsed_dat):
@@ -193,12 +200,12 @@ class Fourchan:
                 process_field = [[] for pa in range(process_num)]
                 PROC_NUM = len(parsed_dat)/process_num
                 for index in range(process_num):
-                    process_field[indx] = parsed_dat[
+                    process_field[index] = parsed_dat[
                             int(index*PROC_NUM):int((index*PROC_NUM)+PROC_NUM)
                             ]
                 return process_field
             except Exception as e:
-                printerr(f"Problem occurent when calculating correct process data separation: {e}")
+                print_caution(f"Problem occurent when calculating correct process data separation: {e}")
                 return []
 
         website_data = self.get_url_data(link, True)
@@ -213,10 +220,10 @@ class Fourchan:
                         map(lambda y: y.strip(), page_title.split('-')))),
                     key=lambda x: len(x), reverse=False))
         else:
-            page_title = printinfo("[INFO] Sorry could not find page title.\nSet title: ")
+            page_title = print_caution("[INFO] Sorry could not find page title.\nSet title: ")
         if cleaned_page_title:
             if not self.args.ignore:
-                printinfo(f"[INFO] Found this title: {cleaned_page_title}")
+                print_caution(f"[INFO] Found this title: {cleaned_page_title}")
                 print("1) Continue\n2) Setup own title")
                 try:
                     answer = int(input("Choice: "))
@@ -240,9 +247,12 @@ class Fourchan:
             #self.pool.append(Process(target=loop, args=(pf,)))
             #self.pool[-1].start()
 
+    def __exit__(self):
+        self.shut_down()
+
 if __name__ == "__main__":
+    assert sys.version_info >= (3,6)
     try:
-        fChan = Fourchan()
+        Kaliya()
     except KeyboardInterrupt:
-        if fChan:
-            fChan.shut_down()
+        sys.exit(0)
