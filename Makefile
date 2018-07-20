@@ -7,12 +7,11 @@
 # Paths
 FILE="/usr/local/bin/kaliya"
 DBASE="$$HOME/.kaliya.list"
-spruce_type=linux64
-ME := $(who | shell awk '{print $$1}')
 
 # Values
-PYTHON3 := $(shell command -v python3 &>/dev/null)
-PIP3 := $(command -v pip3 &>/dev/null)
+PYTHON3 := $(shell command -v python3.7 2>/dev/null)
+PIP3 := $(command -v pip3 2>/dev/null)
+USER := $(who | awk 'NR==1{print $$1}')
 
 # Colors
 ccred='\033[0;31m'
@@ -34,27 +33,48 @@ ifdef PYTHON3
 	@pip3 install bs4 --user
 	@pip3 install selenium --user
 	@echo $(ccgreen)"[INFO] Installing script"$(ccend)
-	@if [ "$$(uname)" = "Linux" ]; then\
-		sudo touch $(FILE);\
-		sudo chown $$(who | awk '{print $$1}'):$$(who | awk '{print $$1}') $(FILE);\
-		echo "#!$$(type python3.6 | cut -d' ' -f3)" > $(FILE);\
-		cat "kaliya.py" >> $(FILE);\
-		chmod u+x $(FILE);\
+	@sudo touch $(FILE)
+	@if [ "$$(uname)" = "Linux" ]; then \
+		sudo chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" $(FILE); \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		sudo chown "$$(who | awk 'NR==1{print $$1}'):staff" $(FILE); \
+	else \
+		echo "Error";\
 	fi
-	@if [ "$$(uname)" = "Linux" ]; then\
-		echo "[INFO] Detected linux machine"
+	@echo "#!$$(type python3.7 | cut -d ' ' -f3)" > $(FILE)
+	@cat "kaliya.py" >> $(FILE)
+	@chmod u+x $(FILE)
+	@if [ "$$(uname)" = "Linux" ]; then \
+		echo "[INFO] Detected linux machine";\
 		wget $$(curl -s https://api.github.com/repos/mozilla/geckodriver/releases/latest | grep browser_download_url | cut -d '"' -f 4 | grep linux64);\
-		tar -xvzf geckodriver*.gz;\
-		sudo mv geckodriver /usr/local/bin/;\
-		sudo chown $$(who | awk '{print $$1}'):$$(who | awk '{print $$1}') /usr/local/bin/geckodriver;\
-		sudo rm -rf geckodriver*.gz
+  	elif [ "$$(uname)" = "Darwin" ]; then \
+		echo "[INFO] Detected macos machine";\
+		brew install wget;\
+		wget $$(curl -s https://api.github.com/repos/mozilla/geckodriver/releases/latest | grep browser_download_url | cut -d '"' -f 4 | grep macos); \
+	else \
+		echo "Error";\
 	fi
+	@tar -xvzf geckodriver*.gz
+	@sudo mv geckodriver /usr/local/bin/
+	@if [ "$$(uname)" = "Linux" ]; then \
+		sudo chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" /usr/local/bin/geckodriver; \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		sudo chown "$$(who | awk 'NR==1{print $$1}'):staff" /usr/local/bin/geckodriver; \
+	else \
+		echo "Error";\
+	fi
+	@sudo rm -rf geckodriver*.gz
 	@echo $(ccgreen)"[INFO] Creating local dabase"$(ccend)
 	@touch $(DBASE)
-	@chown $$(who | awk '{print $$1}'):$$(who | awk '{print $$1}') $(DBASE)
-	@echo "Please install geodriver for firefox: "$(ccyellow)"https://github.com/mozilla/geckodriver/releases"$(ccend)
+	@if [ "$$(uname)" = "Linux" ]; then \
+		sudo chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" $(DBASE); \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		sudo chown "$$(who | awk 'NR==1{print $$1}'):staff" $(DBASE); \
+	else \
+		echo "Error";\
+	fi
 else
-	@echo $(ccred)"[Error] python3.6 is not installed... cannot continue"$(ccend)
+	@echo $(ccred)"[Error] python3.7 is not installed exiting..."$(ccend)
 endif
 
 uninstall:

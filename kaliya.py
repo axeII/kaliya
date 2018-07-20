@@ -8,6 +8,18 @@ from pathlib import Path
 from time import sleep, strftime, gmtime
 from multiprocessing import Process, Queue, active_children
 
+def print_caution(string):
+    caution = list(
+        map(lambda x: x.lower(), string.replace("[", "").replace("]", "").split(" "))
+    )
+    if "error" in caution:
+        print(f"\033[0;31m {string} \033[0m")
+    elif "warning" in caution:
+        print(f"\033[0;33m {string} \033[0m")
+    elif "succes" in caution:
+        print(f"\033[92m {string} \033[0m")
+    else:
+        print(string)
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
@@ -25,20 +37,6 @@ try:
     import requests
 except ModuleNotFoundError:
     print_caution("[WARNING] Not found beautiful_soup or requests package")
-
-
-def print_caution(string):
-    caution = list(
-        map(lambda x: x.lower(), string.replace("[", "").replace("]", "").split(" "))
-    )
-    if "error" in caution:
-        print(f"\033[0;31m {string} \033[0m")
-    elif "warning" in caution:
-        print(f"\033[0;33m {string} \033[0m")
-    elif "succes" in caution:
-        print(f"\033[92m {string} \033[0m")
-    else:
-        print(string)
 
 
 class Kaliya:
