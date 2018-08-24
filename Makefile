@@ -9,7 +9,7 @@ FILE="/usr/local/bin/kaliya"
 DBASE="$$HOME/.kaliya.list"
 
 # Values
-PYTHON3 := $(shell command -v python3.7 2>/dev/null)
+PYTHON3 := $(shell command -v python3.6 2>/dev/null)
 PIP3 := $(command -v pip3 2>/dev/null)
 USER := $(who | awk 'NR==1{print $$1}')
 
@@ -23,7 +23,7 @@ install:
 ifdef PIP3
 	@echo $(ccgreen)"[INFO] Installing PIP3"$(ccend)
 	@curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
-	@sudo python3 get-pip.py --user
+	@ python3 get-pip.py --user
 endif
 	
 ifdef PYTHON3
@@ -33,15 +33,15 @@ ifdef PYTHON3
 	@pip3 install bs4 --user
 	@pip3 install selenium --user
 	@echo $(ccgreen)"[INFO] Installing script"$(ccend)
-	@sudo touch $(FILE)
+	@ touch $(FILE)
 	@if [ "$$(uname)" = "Linux" ]; then \
-		sudo chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" $(FILE); \
+		 chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" $(FILE); \
 	elif [ "$$(uname)" = "Darwin" ]; then \
-		sudo chown "$$(who | awk 'NR==1{print $$1}'):staff" $(FILE); \
+		 chown "$$(who | awk 'NR==1{print $$1}'):staff" $(FILE); \
 	else \
 		echo "Error";\
 	fi
-	@echo "#!$$(type python3.7 | cut -d ' ' -f3)" > $(FILE)
+	@echo "#!$$(type python3.6 | cut -d ' ' -f3)" > $(FILE)
 	@cat "kaliya.py" >> $(FILE)
 	@chmod u+x $(FILE)
 	@if [ "$$(uname)" = "Linux" ]; then \
@@ -55,26 +55,26 @@ ifdef PYTHON3
 		echo "Error";\
 	fi
 	@tar -xvzf geckodriver*.gz
-	@sudo mv geckodriver /usr/local/bin/
+	@ mv geckodriver /usr/local/bin/
 	@if [ "$$(uname)" = "Linux" ]; then \
-		sudo chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" /usr/local/bin/geckodriver; \
+		 chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" /usr/local/bin/geckodriver; \
 	elif [ "$$(uname)" = "Darwin" ]; then \
-		sudo chown "$$(who | awk 'NR==1{print $$1}'):staff" /usr/local/bin/geckodriver; \
+		 chown "$$(who | awk 'NR==1{print $$1}'):staff" /usr/local/bin/geckodriver; \
 	else \
 		echo "Error";\
 	fi
-	@sudo rm -rf geckodriver*.gz
+	@ rm -rf geckodriver*.gz
 	@echo $(ccgreen)"[INFO] Creating local dabase"$(ccend)
 	@touch $(DBASE)
 	@if [ "$$(uname)" = "Linux" ]; then \
-		sudo chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" $(DBASE); \
+		 chown "$$(who | awk 'NR==1{print $$1}'):$$(who | awk 'NR==1{print $$1}')" $(DBASE); \
 	elif [ "$$(uname)" = "Darwin" ]; then \
-		sudo chown "$$(who | awk 'NR==1{print $$1}'):staff" $(DBASE); \
+		 chown "$$(who | awk 'NR==1{print $$1}'):staff" $(DBASE); \
 	else \
 		echo "Error";\
 	fi
 else
-	@echo $(ccred)"[Error] python3.7 is not installed exiting..."$(ccend)
+	@echo $(ccred)"[Error] python3.6 is not installed exiting..."$(ccend)
 endif
 
 uninstall:
