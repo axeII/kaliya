@@ -8,18 +8,18 @@ from pathlib import Path
 from time import sleep, strftime, gmtime
 from multiprocessing import Process, Queue, active_children
 
+
 def print_caution(string):
-    caution = list(
-        map(lambda x: x.lower(), string.replace("[", "").replace("]", "").split(" "))
-    )
-    if "error" in caution:
-        print(f"\033[0;31m {string} \033[0m")
-    elif "warning" in caution:
-        print(f"\033[0;33m {string} \033[0m")
-    elif "succes" in caution:
-        print(f"\033[92m {string} \033[0m")
-    else:
-        print(string)
+    caution_list = {
+        "error": "\033[0;31m {} \033[0m".format(string),
+        "warning": "\033[0;33m {} \033[0m".format(string),
+        "succes": "\033[92m {} \033[0m".format(string),
+        "info": string,
+    }
+    caution = re.search(r"\w+", string).group().lower()
+    print(caution_list[caution])
+
+
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
@@ -80,7 +80,7 @@ class Kaliya:
             "gif89a": {"mn": "474946383961", "size": 12},
             "gif87a": {"mn": "474946383761", "size": 12},
         }
-        self.database = f"{str(Path.home())}/.kaliya.list"
+        self.database = "{}/.kaliya.list".format(str(Path.home()))
         self.workpath = os.path.realpath(os.getcwd())
         self.secondary_mode = False
         self.path = ""
@@ -105,7 +105,7 @@ class Kaliya:
 
     def check_value(self, value, error_line):
         if not value:
-            print_caution(f"[Error] {error_line} \n {value}")
+            print_caution("[Error] {} \n {}".format(error_line, value or ""))
             sys.exit(2)
         return value
 
@@ -124,7 +124,7 @@ class Kaliya:
                     filter(lambda a: a, map(lambda x: x.strip(), stream.readlines()))
                 ):
                     stream.seek(2)
-                    stream.write(f"{seq}\n")
+                    stream.write("{}\n".format(seq))
             else:
                 stream.seek(0)
                 for index, line in enumerate(
@@ -134,12 +134,12 @@ class Kaliya:
                         )
                     )
                 ):
-                    print(f"{index}) {line}")
+                    print("{}) {}".format(index, line))
 
-    def get_url_data(self, url, normal):
+    def get_url_data(self, url, normal, driver=None):
         """ normal stands for downloading bytes like images etc, normal true in
         to search images"""
-        self.check_value(url, " Broken link")
+        self.check_value(url, "Broken link")
         try:
             if (self.args.selenium and normal) or self.secondary_mode:
                 print_caution(
@@ -158,7 +158,9 @@ class Kaliya:
                 response = requests.request("get", url)
                 return response.text if normal else response.content
         except Exception as e:
-            print_caution(f"[Error] Found url:{url} is not valid\n stderr: {e}")
+            print_caution(
+                "[Error] Found url:{} is not valid\n stderr: {}".format(url, e)
+            )
             if driver:
                 driver.quit()
             # self.error_download += 1
@@ -193,14 +195,14 @@ class Kaliya:
 
     def shut_down(self):
         for process in active_children():
-            print_caution(f"Shutting down process {process}")
+            print_caution("Shutting down process {}".format(process))
             process.terminate()
             process.join()
 
     def download_images(self, link):
         def loop(data):
             if data and self.path:
-                [create_img(f"{self.path}", link, *spec) for spec in data]
+                [create_img(str(self.path), link, *spec) for spec in data]
 
         def create_img(direct, link, link_address, link_name):
             def supported_format(mag_num):
@@ -215,36 +217,40 @@ class Kaliya:
 
             def broken_link(site, link):
                 return (
-                    f"{site}/{link}"
+                    "{}/{}".format(site, link)
                     if not link.startswith("http") or not link.count(".") > 1
                     else link
                 )
 
             def fix_https(link):
-                return f"https:{link}" if not link.startswith("http") else link
+                return "https:{}".format(link) if not link.startswith("http") else link
 
             def detect_real_url(site_link, file_url):
                 original = requests.get(fix_https(file_url))
                 if original.status_code != 200:
                     new = requests.get(broken_link(site_link, file_url))
                     if new.status_code != 200:
-                        print_caution("[ERROR] site not found")
+                        print_caution("[Error] Site not found")
                     else:
                         return broken_link(site_link, file_url)
                 else:
                     return fix_https(file_url)
 
             # sleep(1.4)
-            if not os.path.isfile(f"{direct}/{link_name}"):
+            if not os.path.isfile("{}/{}".format(direct, link_name)):
                 image_dat = self.get_url_data(
                     detect_real_url(link, link_address), False
                 )
                 magic_number = "".join(["{:02X}".format(b) for b in image_dat[:8]][:8])
                 if supported_format(magic_number):
-                    with open(f"{direct}/{link_name}", "wb") as img:
+                    with open("{}/{}".format(direct, link_name), "wb") as img:
                         img.write(image_dat)
                         # self.que.put(True)
-                    print(f"[{strftime('%H:%M:%S', gmtime())}] {direct}/{link_name}")
+                    print(
+                        "[{}] {}/{}".format(
+                            strftime("%H:%M:%S", gmtime()), direct, link_name
+                        )
+                    )
                 else:
                     print_caution("[ERROR] image not supported")
 
@@ -267,7 +273,9 @@ class Kaliya:
                 return process_field
             except Exception as e:
                 print_caution(
-                    f"Problem occurent when calculating correct process data separation: {e}"
+                    "Problem occurent when calculating correct process data separation: {}".format(
+                        e
+                    )
                 )
                 return []
 
@@ -297,7 +305,7 @@ class Kaliya:
             )
         if cleaned_page_title:
             if not self.args.ignore:
-                print_caution(f"[INFO] Found this title: {cleaned_page_title}")
+                print_caution("[INFO] Found this title: {}".format(cleaned_page_title))
                 print("1) Continue\n2) Setup own title")
                 try:
                     answer = int(input("Choice: "))
@@ -306,11 +314,15 @@ class Kaliya:
                 if answer == 2:
                     cleaned_page_title = input("Folder name: ")
             print_caution("[INFO] Creating folder...")
-            os.makedirs(f"{self.workpath}/{cleaned_page_title}", exist_ok=True)
-            self.path = f"{self.workpath}/{cleaned_page_title}"
+            os.makedirs(
+                "{}/{}".format(self.workpath, cleaned_page_title), exist_ok=True
+            )
+            self.path = "{}/{}".format(self.workpath, cleaned_page_title)
         else:
-            os.makedirs(f"{self.workpath}/4chan{page_title}", exist_ok=True)
-            self.path = f"{self.workpath}/4chan{page_title}"
+            os.makedirs(
+                "{}/4chan{}".format(self.workpath, cleaned_page_title), exist_ok=True
+            )
+            self.path = "{}/4chan{}".format(self.workpath, cleaned_page_title)
 
         parsed_data = self.find_images(soup)
         if not parsed_data:
