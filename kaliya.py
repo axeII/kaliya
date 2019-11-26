@@ -1,352 +1,233 @@
+"""Kalia image web scraper
+
+Uses multiple methods to download images from specific source
+"""
+
+__version__ = '0.7'
+__author__ = 'axell'
+
+import math
 import os
 import re
 import sys
-import math
-import imghdr
-import argparse
+
+from multiprocessing import Process, active_children
 from pathlib import Path
-from time import sleep, strftime, gmtime
-from multiprocessing import Process, Queue, active_children
+from time import gmtime, sleep, strftime
+
+import click
+import requests
+from bs4 import BeautifulSoup
 
 
-def print_caution(string):
-    caution_list = {
-        "error": "\033[0;31m {} \033[0m".format(string),
-        "warning": "\033[0;33m {} \033[0m".format(string),
-        "succes": "\033[92m {} \033[0m".format(string),
-        "info": string,
+def echo(string):
+    """Later on this could be set to point to file
+    instead of stdout
+    """
+    action = {
+        "warning": f"\033[0;33m {string} \033[0m",
+        "error":   f"\033[0;31m {string} \033[0m",
+        "succes":  f"\033[92m {string} \033[0m",
     }
-    caution = re.search(r"\w+", string).group().lower()
-    print(caution_list[caution])
+
+    print(action.get(re.search(r"\w+", string).group().lower(), string))
+
+def check_value(value, error_line):
+    if not value:
+        #FIXME: print rather varibable than value
+        echo(f"[Error] {error_line} \n {value or ''}")
+        raise ValueError(f"Missing value, {error_line}")
+
+    return value
+
+def write_to_db(data):
+    with open(f"{Path.home()}/.kaliya.list", "a+") as stream:
+        stream.seek(0)
+        current_data = [val.strip() for val in stream.readlines() if val]
+
+        if not data or data in current_data:
+            return
+
+        stream.seek(2)
+        stream.write(f"{data}\n")
+
+def print_from_db():
+    """
+    TODO: setup sqlite3 database https://docs.python.org/3.8/library/sqlite3.html
+    TODO: DRY can I fix this?
+    """
+    with open("f{str(Path.home())}/.kaliya.list", "a+") as stream:
+        current_data = [x.strip() for x in stream.readlines() if x]
+
+        stream.seek(0)
+        for index, line in enumerate(current_data):
+            echo(f"{index}): {line}")
+
+def get_data_from_url_advanced(link):
+    echo(
+            "[WARNING] Using tools to download content - this will take some time..."
+            )
+    if True:
+        echo("[SUCCES] Images had been found")
+    #TODO: Here goes pypeteer data
+    return None
 
 
-try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.firefox.options import Options
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.common.exceptions import ElementNotVisibleException
-except ModuleNotFoundError:
-    print_caution(
-        "[WARNING] Selenium not found... you won't be able to use some kaliya features"
-    )
-
-try:
-    from bs4 import BeautifulSoup
-    import requests
-except ModuleNotFoundError:
-    print_caution("[WARNING] Not found beautiful_soup or requests package")
+def get_data_from_url_simple(url, secondary_mode=False):
+    """
+    Normal stands for downloading bytes like images etc, normal true in
+    to search images
+    """
+    try:
+        check_value(url, "Bad link")
+        url = f"http://{url.split('//')[1]}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+        return requests.get(url, headers=headers)
+    except Exception as err:
+        echo(f"[Error] {err}")
 
 
-class Kaliya:
-    def __init__(self):
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "urls",
-            nargs="*",
-            help="Url of thread with images, Multiple urls in one command is posssible",
-            default=[],
-        )
-        parser.add_argument(
-            "-r",
-            "--reload",
-            action="store_true",
-            help="Refresh script every 5 minutes to check for new images",
-        )
-        parser.add_argument(
-            "-l",
-            "--last",
-            action="store_true",
-            help="Show history information about downloading images",
-        )
-        parser.add_argument(
-            "-s",
-            "--selenium",
-            action="store_true",
-            help="Activate selenium mode to load site with healess mode (use for sites that load iamges later)",
-        )
-        parser.add_argument(
-            "-i",
-            "--ignore",
-            action="store_true",
-            help="Ignore title setup just use founded on site",
-        )
+def find_images_in_website_data(soup, website_data, website_url):
+    parsed_link_data = [link.get("href") for link in soup.find_all("a", href=True)]
+    parsed_img_data  = [link.get("src") for link in soup.find_all("img")]
+    found_url_images = []
 
-        self.args = parser.parse_args()
-        self.supported_files = {
-            "jpeg": {"mn": "FFD8", "size": 4},
-            "png": {"mn": "89504E470D0A1A0A", "size": 16},
-            "gif89a": {"mn": "474946383961", "size": 12},
-            "gif87a": {"mn": "474946383761", "size": 12},
-        }
-        self.database = "{}/.kaliya.list".format(str(Path.home()))
-        self.workpath = os.path.realpath(os.getcwd())
-        self.secondary_mode = False
-        self.path = ""
-        # self.pool = []
-        # self.error_download = 0
-        # self.que = Queue()
-        if not any(vars(self.args).values()):
-            parser.print_help()
-            sys.exit(0)
-
-        if self.args.last:
-            self.access_to_db(False)
-            sys.exit(0)
-
-        self.main()
-        while self.args.reload:
-            sleep(300)
-            self.main()
-
-        # [job.join() for job in self.pool]
-        # print(f"[Info] {self.que.qsize()} images has been downloaded number of error {self.error_download} occured")
-
-    def check_value(self, value, error_line):
-        if not value:
-            print_caution("[Error] {} \n {}".format(error_line, value or ""))
-            sys.exit(2)
-        return value
-
-    def main(self):
-        if isinstance(self.args.urls, list):
-            for link_thread in self.args.urls:
-                self.download_images(link_thread)
+    for data in (parsed_link_data + parsed_img_data):
+        if re.match(r"[https?:]?\/\/[\w\.\/\d-]*\.(jpe?g|png|gif)", data):
+            found_url_images.append(data)
+        elif re.match(r"[-a-zA-Z\d]+\.(jpe?g|png|gif)", data):
+            found_url_images.append(f"{website_url}/{data}") 
         else:
-            self.download_images(self.args.urls)
+            continue
+    return found_url_images
 
-    def access_to_db(self, sync_data, seq=""):
-        with open(self.database, "a+") as stream:
-            if sync_data:
-                stream.seek(0)
-                if not seq in list(
-                    filter(lambda a: a, map(lambda x: x.strip(), stream.readlines()))
-                ):
-                    stream.seek(2)
-                    stream.write("{}\n".format(seq))
-            else:
-                stream.seek(0)
-                for index, line in enumerate(
-                    list(
-                        filter(
-                            lambda a: a, map(lambda x: x.strip(), stream.readlines())
-                        )
-                    )
-                ):
-                    print("{}) {}".format(index, line))
+def shut_down():
+   for process in active_children():
+        echo(f"Shutting down process {process}")
+        process.terminate()
+        process.join()
 
-    def get_url_data(self, url, normal, driver=None):
-        """ normal stands for downloading bytes like images etc, normal true in
-        to search images"""
-        self.check_value(url, "Broken link")
+def supported_format(magic_num):
+    supported_files = {
+            "jpeg": {"magic_number": "FFD8", "size": 4},
+            "png": {"magic_number": "89504E470D0A1A0A", "size": 16},
+            "gif89a": {"magic_number": "474946383961", "size": 12},
+            "gif87a": {"magic_number": "474946383761", "size": 12},
+            }
+
+    for key, value in supported_files.items():
+        if magic_num[:value["size"]] == value["magic_number"]:
+            return key
+
+    return None
+
+def separate_data_into_proceses(parsed_data):
+    proc_num = math.ceil(len(parsed_data) / 10)
+    number = int(len(parsed_data) / proc_num)
+
+    for i in range(proc_num):
+        index = int(i * number)
+        yield parsed_data[index:(index + number)]
+
+def create_image_file(directory, url):
+
+    def detect_and_fix(link):
+        #Should I really need to fix link here?
+        return link
+
+    def get_magic_num(data):
+        return "".join(["{:02X}".format(b) for b in data[:8]][:8])
+
+    file_name = url.split('/')[-1]
+    full_path = f"{directory}/{file_name}"
+
+    if os.path.isfile(full_path):
+        return
+
+    image_data = get_data_from_url_simple(detect_and_fix(url)).content
+    if supported_format(get_magic_num(image_data)):
+        with open(full_path, "wb") as image_file:
+            image_file.write(image_data)
+        echo(f"[{strftime('%H:%M:%S', gmtime())}] {full_path}")
+    else:
+        echo("[ERROR] Image not supported")
+
+
+def download_images_from_url(url, workpath):
+
+    def parse_title(soup):
         try:
-            if (self.args.selenium and normal) or self.secondary_mode:
-                print_caution(
-                    "[WARNING] Using selenium to download content - this could take some time..."
-                )
-                options = Options()
-                options.add_argument("--headless")
-                driver = webdriver.Firefox(firefox_options=options)
-                # driver.wait = WebDriverWait(driver, 5)
-                # myElem = WebDriverWait(driver,3).until(EC.presence_of_element_located((By.CLASS_NAME,"overlay")))
-                driver.get(url)
-                page_source = driver.page_source
-                driver.quit()
-                return page_source
-            else:
-                response = requests.request("get", url)
-                return response.text if normal else response.content
-        except Exception as e:
-            print_caution(
-                "[Error] Found url:{} is not valid\n stderr: {}".format(url, e)
-            )
-            if driver:
-                driver.quit()
-            # self.error_download += 1
+            title = soup.title.text
+            clean_data = [data.strip() for data in title.split('-') if not '/' in data]
+            title = " ".join(sorted(clean_data, key=lambda x: len(x), reverse=False))
+        except AttributeError:
+            echo(
+                    "[WARNING] Sorry could not find page title.\nSet title: "
+                    )
+            title = input("Set new title: ")
+        return title
 
-    def find_images(self, soup_):
-        # for a in soup_.find_all('a',{"class": "overlay"}, href=True):
-        #    print(a)
-        data = [link.get("href") for link in soup_.find_all("a", href=True)]
-        # print(list(filter(lambda x: "jpg" in x or "png" in x ,data)))
-        if not list(filter(lambda x: "jpg" in x or "png" in x, data)):
-            data = [link for link in soup_.find_all("img")]
-        return list(
-            map(
-                lambda a: (a, a.split("/")[-1]),
-                filter(
-                    lambda l: any(
-                        list(map(lambda t: t in l, ("jpeg", "jpg", "png", "gif")))
-                    ),
-                    data,
-                ),
-            )
+
+    website_data = get_data_from_url_simple(url)
+    soup = BeautifulSoup(
+            check_value(website_data, "Not found web data").text, 
+            "html.parser"
         )
 
-    def use_selenium(self, link):
-        self.secondary_mode = True
-        website_data = self.get_url_data(link, True)
-        sp = BeautifulSoup(website_data, "html.parser")
-        return self.find_images(sp)
+    workpath = f"{workpath}/{parse_title(soup)}"
+    os.makedirs(workpath, exist_ok=True)
+    echo("[SUCCES] Creating folder")
 
-    def load_models(self):
-        pass
-
-    def shut_down(self):
-        for process in active_children():
-            print_caution("Shutting down process {}".format(process))
-            process.terminate()
-            process.join()
-
-    def download_images(self, link):
-        def loop(data):
-            if data and self.path:
-                [create_img(str(self.path), link, *spec) for spec in data]
-
-        def create_img(direct, link, link_address, link_name):
-            def supported_format(mag_num):
-                return any(
-                    list(
-                        map(
-                            lambda x: mag_num[: x["size"]] == x["mn"],
-                            self.supported_files.values(),
-                        )
-                    )
-                )
-
-            def broken_link(site, link):
-                return (
-                    "{}/{}".format(site, link)
-                    if not link.startswith("http") or not link.count(".") > 1
-                    else link
-                )
-
-            def fix_https(link):
-                return "https:{}".format(link) if not link.startswith("http") else link
-
-            def detect_real_url(site_link, file_url):
-                original = requests.get(fix_https(file_url))
-                if original.status_code != 200:
-                    new = requests.get(broken_link(site_link, file_url))
-                    if new.status_code != 200:
-                        print_caution("[Error] Site not found")
-                    else:
-                        return broken_link(site_link, file_url)
-                else:
-                    return fix_https(file_url)
-
-            # sleep(1.4)
-            if not os.path.isfile("{}/{}".format(direct, link_name)):
-                image_dat = self.get_url_data(
-                    detect_real_url(link, link_address), False
-                )
-                magic_number = "".join(["{:02X}".format(b) for b in image_dat[:8]][:8])
-                if supported_format(magic_number):
-                    with open("{}/{}".format(direct, link_name), "wb") as img:
-                        img.write(image_dat)
-                        # self.que.put(True)
-                    print(
-                        "[{}] {}/{}".format(
-                            strftime("%H:%M:%S", gmtime()), direct, link_name
-                        )
-                    )
-                else:
-                    print_caution("[ERROR] image not supported")
-
-        def parse_title(soup_, data):
-            try:
-                return soup_.title.text
-            except:
-                print_caution("[Warning] page title not found")
-                return ""
-
-        def calculate_optimum(parsed_dat):
-            try:
-                process_num = math.ceil(len(parsed_data) / 10)
-                process_field = [[] for pa in range(process_num)]
-                PROC_NUM = len(parsed_dat) / process_num
-                for index in range(process_num):
-                    process_field[index] = parsed_dat[
-                        int(index * PROC_NUM) : int((index * PROC_NUM) + PROC_NUM)
-                    ]
-                return process_field
-            except Exception as e:
-                print_caution(
-                    "Problem occurent when calculating correct process data separation: {}".format(
-                        e
-                    )
-                )
-                return []
-
-        # start
-        website_data = self.get_url_data(link, True)
-        cleaned_page_title = ""
-        soup = BeautifulSoup(
-            self.check_value(website_data, "Not found web data"), "html.parser"
+    found_parsed_img = find_images_in_website_data(soup, website_data, url)
+    if not found_parsed_img:
+        echo(
+            "[WARNING] No images found using advanced search"
         )
-        page_title = parse_title(soup, website_data)
-        if page_title:
-            cleaned_page_title = " ".join(
-                sorted(
-                    list(
-                        filter(
-                            lambda x: "/" not in x,
-                            map(lambda y: y.strip(), page_title.split("-")),
-                        )
-                    ),
-                    key=lambda x: len(x),
-                    reverse=False,
-                )
-            )
-        else:
-            page_title = print_caution(
-                "[INFO] Sorry could not find page title.\nSet title: "
-            )
-        if cleaned_page_title:
-            if not self.args.ignore:
-                print_caution("[INFO] Found this title: {}".format(cleaned_page_title))
-                print("1) Continue\n2) Setup own title")
-                try:
-                    answer = int(input("Choice: "))
-                except ValueError:
-                    answer = int(input("Please input number to choose next step: "))
-                if answer == 2:
-                    cleaned_page_title = input("Folder name: ")
-            print_caution("[INFO] Creating folder...")
-            os.makedirs(
-                "{}/{}".format(self.workpath, cleaned_page_title), exist_ok=True
-            )
-            self.path = "{}/{}".format(self.workpath, cleaned_page_title)
-        else:
-            os.makedirs(
-                "{}/4chan{}".format(self.workpath, cleaned_page_title), exist_ok=True
-            )
-            self.path = "{}/4chan{}".format(self.workpath, cleaned_page_title)
+        found_parsed_img = get_data_from_url_advanced(url)
+        check_value(found_parsed_img, "Didn't find any supported images:")
 
-        parsed_data = self.find_images(soup)
-        if not parsed_data:
-            print_caution(
-                "[WARNING] No images found switching to secondary mode using selenium..."
-            )
-            parsed_data = self.use_selenium(link)
-            if parsed_data:
-                print_caution("[SUCCES] Images has been found")
-                self.secondary_mode = False
-        self.check_value(parsed_data, "Didn't find any supported images:")
-        self.access_to_db(True, link)
-        for pf in calculate_optimum(parsed_data):
-            Process(target=loop, args=(pf,)).start()
-            # self.pool.append(Process(target=loop, args=(pf,)))
-            # self.pool[-1].start()
+    write_to_db(url)
+    for values in separate_data_into_proceses(found_parsed_img):
+        try:
+            Process(target=loop, args=(workpath,values)).start()
+        except ValueError:
+            continue
 
-    def __exit__(self):
-        self.shut_down()
+def loop(path, values):
+    check_value(values, "Bad input for process")
+    for link in values:
+        create_image_file(path, link)
 
+@click.command()
+@click.argument("urls", nargs=-1)
+@click.option("-r", "--refresh", is_flag=True, help="Refresh script every 5 minutes to check for new images")
+@click.option("-l", "--last", is_flag=True, help="Show history information about downloading images")
+@click.option("-i", "--ignore", is_flag=True, help="Ignore title setup just use founded on site")
+def main(urls, refresh, last, ignore):
+    def process_all_data(input_links):
+        """
+        If this goes second time for same data it will
+        skip already data that exist locally
+        """
+        for link in input_links:
+            try:
+                download_images_from_url(link, Path.cwd())
+            except ValueError:
+                continue
+
+    if last:
+        print_from_db()
+        return
+
+    while True:
+        process_all_data(urls)
+        if not refresh:
+            break
+        sleep(300)
 
 if __name__ == "__main__":
-    assert sys.version_info >= (3, 6)
     try:
-        Kaliya()
+        main()
     except KeyboardInterrupt:
-        sys.exit(0)
+        shut_down()
+        sys.exit()
