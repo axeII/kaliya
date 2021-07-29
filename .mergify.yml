@@ -2,8 +2,8 @@ pull_request_rules:
   - name: automatic merge for Dependabot pull requests
     conditions:
       - author=dependabot[bot]
-      # Replace with the name of your CI(s)
-      - check-success=Build and Test
+      # For some reason mergify doesn't accept ci job name
+      # - check-success=Build and Test
       - title~=^Bump [^\s]+ from ([\d]+)\..+ to \1\.
     actions: 
       merge:
