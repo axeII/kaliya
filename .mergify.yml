@@ -3,8 +3,8 @@ pull_request_rules:
     conditions:
       - author=dependabot[bot]
       # Replace with the name of your CI(s)
-      - check-success=Python application
+      - check-success=Test with pytest
       - title~=^Bump [^\s]+ from ([\d]+)\..+ to \1\.
-    actions:
+    actions: 
       merge:
         method: merge
