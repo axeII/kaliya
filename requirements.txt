@@ -4,21 +4,21 @@
 #
 #    pip-compile requirements.in
 #
-beautifulsoup4==4.8.1
+beautifulsoup4==4.9.3
     # via bs4
 bs4==0.0.1
     # via -r requirements.in
-certifi==2019.9.11
+certifi==2021.5.30
     # via requests
-chardet==3.0.4
+charset-normalizer==2.0.4
     # via requests
-click==7.0
+click==8.0.1
     # via -r requirements.in
-idna==2.8
+idna==3.2
     # via requests
-requests==2.22.0
+requests==2.26.0
     # via -r requirements.in
-soupsieve==1.9.5
+soupsieve==2.2.1
     # via beautifulsoup4
-urllib3==1.25.8
+urllib3==1.26.6
     # via requests
